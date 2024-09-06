@@ -1,0 +1,118 @@
+iot 기초설계 라즈베리파이 코드
+import RPi.GPIO as GPIO  # 라즈베리 파이의 GPIO 핀을 제어하기 위한 라이브러리
+import time  # 시간 지연을 위한 라이브러리
+import cv2  # OpenCV 라이브러리, 이미지 처리 및 카메라 제어에 사용
+import numpy as np  # 수치 연산을 위한 NumPy 라이브러리
+import tensorflow as tf  # 딥러닝 모델을 로드하고 예측하는 데 사용되는 TensorFlow 라이브러리
+
+# GPIO 핀 번호 설정
+TRIG_PIN = 23  # 초음파 센서의 트리거 핀
+ECHO_PIN = 24  # 초음파 센서의 에코 핀
+MOTOR_PIN1 = 17  # 컨베이어 벨트 모터의 제어 핀 1
+MOTOR_PIN2 = 27  # 컨베이어 벨트 모터의 제어 핀 2
+
+# GPIO 초기화 및 핀 모드 설정
+GPIO.setmode(GPIO.BCM)  # GPIO 핀 번호를 BCM 모드로 설정
+GPIO.setup(TRIG_PIN, GPIO.OUT)  # 트리거 핀을 출력 모드로 설정
+GPIO.setup(ECHO_PIN, GPIO.IN)  # 에코 핀을 입력 모드로 설정
+GPIO.setup(MOTOR_PIN1, GPIO.OUT)  # 모터 제어 핀 1을 출력 모드로 설정
+GPIO.setup(MOTOR_PIN2, GPIO.OUT)  # 모터 제어 핀 2를 출력 모드로 설정
+
+# 딥러닝 모델 로드
+model = tf.keras.models.load_model('waste_classification/model.h5')  # 사전 학습된 쓰레기 분류 모델을 로드
+
+# 모터를 앞으로 회전시키는 함수 (컨베이어 벨트 작동)
+def motor_forward():
+    GPIO.output(MOTOR_PIN1, GPIO.HIGH)  # 모터 핀 1을 HIGH로 설정 (정방향 회전)
+    GPIO.output(MOTOR_PIN2, GPIO.LOW)  # 모터 핀 2를 LOW로 설정
+
+# 모터를 정지시키는 함수 (컨베이어 벨트 정지)
+def motor_stop():
+    GPIO.output(MOTOR_PIN1, GPIO.LOW)  # 모터 핀 1을 LOW로 설정 (모터 정지)
+    GPIO.output(MOTOR_PIN2, GPIO.LOW)  # 모터 핀 2를 LOW로 설정
+
+# 초음파 센서를 사용하여 물체까지의 거리를 측정하는 함수
+def get_distance():
+    # 초음파 센서에서 거리 측정을 시작
+    GPIO.output(TRIG_PIN, True)  # 트리거 핀을 HIGH로 설정하여 초음파 발사
+    time.sleep(0.00001)  # 10 마이크로초 후 트리거 핀을 LOW로 설정
+    GPIO.output(TRIG_PIN, False)
+
+    # 초음파가 물체에 닿아 돌아올 때까지 시간을 기록
+    start_time = time.time()  # 에코 핀이 LOW일 때 시간 기록
+    stop_time = time.time()  # 에코 핀이 HIGH일 때 시간 기록
+
+    while GPIO.input(ECHO_PIN) == 0:  # 에코 핀이 LOW일 동안 계속 대기
+        start_time = time.time()
+
+    while GPIO.input(ECHO_PIN) == 1:  # 에코 핀이 HIGH일 동안 계속 대기
+        stop_time = time.time()
+
+    # 초음파가 이동한 시간을 거리로 변환
+    time_elapsed = stop_time - start_time  # 초음파가 이동한 시간 계산
+    distance = (time_elapsed * 34300) / 2  # 시간을 이용해 거리를 계산 (단위: cm)
+    return distance  # 계산된 거리 반환
+
+# 이미지 전처리 함수 (딥러닝 모델 입력에 맞게 이미지 변환)
+def preprocess_image(image_path):
+    img = cv2.imread(image_path)  # 이미지를 파일에서 로드
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # BGR 색상에서 RGB 색상으로 변환
+    img = cv2.resize(img, (224, 224))  # 이미지를 224x224 크기로 조정 (모델 입력 크기에 맞춤)
+    img = img.astype('float32') / 255.0  # 픽셀 값을 0과 1 사이로 정규화
+    img = np.expand_dims(img, axis=0)  # 배치 차원 추가 (모델 입력 형식에 맞춤)
+    return img  # 전처리된 이미지 반환
+
+# 이미지 분류 함수 (이미지의 쓰레기 종류를 예측)
+def classify_waste(image_path):
+    img = preprocess_image(image_path)  # 이미지를 전처리
+    prediction = model.predict(img)  # 모델을 사용해 이미지 예측
+    class_idx = np.argmax(prediction, axis=1)[0]  # 가장 높은 확률을 가진 클래스 인덱스 찾기
+    
+    # 클래스 이름 정의 (모델이 예측하는 클래스에 따라 맞춤)
+    class_names = ['Plastic', 'Paper', 'Metal', 'Glass', 'Organic', 'Other']
+    return class_names[class_idx]  # 예측된 클래스 이름 반환
+
+# 이미지 촬영 및 분류 함수 (카메라로 이미지 촬영 후 쓰레기 분류)
+def capture_and_classify():
+    camera = cv2.VideoCapture(0)  # 카메라 초기화 (0번 장치)
+    ret, frame = camera.read()  # 카메라에서 프레임 읽기
+    if ret:  # 프레임이 제대로 읽혔다면
+        cv2.imwrite("capture.jpg", frame)  # 프레임을 이미지 파일로 저장
+        result = classify_waste("capture.jpg")  # 저장된 이미지를 분류
+        return result  # 분류 결과 반환
+    camera.release()  # 카메라 장치 해제
+
+# 메인 루프 (프로그램의 주요 동작을 관리)
+try:
+    while True:
+        distance = get_distance()  # 초음파 센서를 통해 거리를 측정
+        print(f"Distance: {distance} cm")  # 측정된 거리 출력
+
+        if distance < 10:  # 물체가 일정 거리(10cm) 이내에 있으면
+            motor_forward()  # 컨베이어 벨트를 작동시켜 물체를 이동시킴
+            time.sleep(2)  # 물체가 카메라 앞으로 올 시간을 대기
+            motor_stop()  # 모터를 정지시켜 컨베이어 벨트를 멈춤
+
+            result = capture_and_classify()  # 카메라로 이미지 촬영 후 분류
+            print(f"Classified as: {result}")  # 분류 결과 출력
+
+            # 분류 결과에 따른 처리 (예: 특정 쓰레기 분류에 따른 동작 수행)
+            if result == "Plastic":
+                print("플라스틱 처리")
+            elif result == "Paper":
+                print("종이 처리")
+            # 다른 종류의 쓰레기에 대한 추가 처리 코드 작성 가능
+
+        time.sleep(1)  # 1초 대기 후 루프 반복
+
+except KeyboardInterrupt:  # 프로그램이 강제로 종료될 때 (Ctrl + C)
+    GPIO.cleanup()  # GPIO 설정 초기화
+    print("프로그램 종료")  # 종료 메시지 출력
+
+# 여기에 추가로 분류 결과에 따라 재활용 쓰레기를 분류하여 이동시키는 코드 추가 필요
+# 모터 2개를 벨트로 연결하여 컨베이어 벨트 만듦
+# 쓰레기 분류
+#  sol1 라즈베리파이 리니어 액추에이터를 이용하여 캔, 플라스틱, pet, 일반쓰레기(etc)를 분류
+
+# sol2 라즈베리파이 서보 모터를 이용한 방향 전환
+
