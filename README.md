@@ -9,7 +9,19 @@
 분류는 cnn 모델을 이용한다. <br>
 https://github.com/standfsk/waste_classification <br>
 해당 모델을 이용하여 ai허브에 있는 생활 폐기물 이미지 데이터셋을 이용한다. <br>
-https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=&topMenu=&aihubDataSe=data&dataSetSn=140
+https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=&topMenu=&aihubDataSe=data&dataSetSn=140 <br>
+331GB의 데이터를 모드 사용하기에는 너무 많은 시간이 필요할 수 있으므로, 데이터의 수를 줄이고 Epoch 수를 늘리는 방향을 선택한다. <Br>
+data_set은 train_set 80% test_set 20% 정도로 사용한다. 이러한 모델은 결과치에 따라 유동적으로 변환하여 사용할 수 있다.<br>
 ### 2_3. 어떤 종류의 쓰레기인지 판별한 후, 쓰레기를 이동시키는 엑츄에이터
-#### sol1 
-#### sol2 
+이렇게 판별된 결과에 따라 쓰레기를 이동시켜 분류한다. 분류하는 방법은 2가지 방법 중 하나로 사용한다.
+#### Sol1 리니어 액추에이터를 이용한 분류
+- 장점
+  
+- 단점
+  
+#### Sol2 서버 모터를 이용한 분류
+- 장점
+  
+- 단점
+
+  
