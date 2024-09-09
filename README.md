@@ -12,6 +12,8 @@
 분류는 cnn 모델을 이용한다. <br>
 https://github.com/standfsk/waste_classification <br>
 해당 모델을 이용하여 ai허브에 있는 생활 폐기물 이미지 데이터셋을 이용한다. <br>
+![image](https://github.com/user-attachments/assets/f3405c66-4062-4230-953e-db8a9c196ba4)
+
 https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=&topMenu=&aihubDataSe=data&dataSetSn=140 <br>
 331GB의 데이터를 모드 사용하기에는 너무 많은 시간이 필요할 수 있으므로, 데이터의 수를 줄이고 Epoch 수를 늘리는 방향을 선택한다. <Br>
 data_set은 train_set 80% test_set 20% 정도로 사용한다. 이러한 모델은 결과치에 따라 유동적으로 변환하여 사용할 수 있다.<br>
