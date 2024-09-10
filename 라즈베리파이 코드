@@ -12,7 +12,8 @@ TRIG_PIN_2 = 25  # 초음파 센서 2의 트리거 핀 (카메라 위치)
 ECHO_PIN_2 = 8   # 초음파 센서 2의 에코 핀 (카메라 위치)
 MOTOR_PIN1 = 17  # 컨베이어 벨트 모터의 제어 핀 1
 MOTOR_PIN2 = 27  # 컨베이어 벨트 모터의 제어 핀 2
-SERVO_PIN = 22  # 서보 모터 제어 핀
+SERVO_PIN1 = 22  # 서보 모터1 제어 핀
+SERVO_PIN2 = 23  # 서보 모터2 제어 핀
 
 # GPIO 초기화 및 핀 모드 설정
 GPIO.setmode(GPIO.BCM)  # GPIO 핀 번호를 BCM 모드로 설정
