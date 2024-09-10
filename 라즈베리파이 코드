@@ -25,7 +25,8 @@ GPIO.setup(MOTOR_PIN1, GPIO.OUT)  # 모터 제어 핀 1을 출력 모드로 설�
 GPIO.setup(MOTOR_PIN2, GPIO.OUT)  # 모터 제어 핀 2를 출력 모드로 설정
 
 # 서보 모터 초기화
-servo = Servo(SERVO_PIN)
+servo1 = Servo(SERVO_PIN1)  # 서보 모터 1 (왼쪽)
+servo2 = Servo(SERVO_PIN2)  # 서보 모터 2 (오른쪽)
 
 # 딥러닝 모델 로드
 model = tf.keras.models.load_model('waste_classification/model.h5')  # 사전 학습된 쓰레기 분류 모델을 로드
@@ -80,15 +81,17 @@ def classify_waste(image_path):
 # 서보 모터 회전 함수 (쓰레기 분류에 따른 각도 조절)
 def move_servo(result):
     if result == 'Paper':
-        servo.value = 30 / 180.0  # 30도
+        servo1.value = 30 / 180.0  # 서보 모터 1: 30도 (왼쪽)
+        servo2.value = -30 / 180.0  # 서보 모터 2: 30도 (오른쪽)
     elif result == 'Metal':
-        servo.value = 60 / 180.0  # 60도
+        servo1.value = 60 / 180.0  # 서보 모터 1: 60도 (왼쪽)
+        servo2.value = -60 / 180.0  # 서보 모터 2: 60도 (오른쪽)
     elif result == 'Plastic':
-        servo.value = 120 / 180.0  # 120도
-    elif result == 'PET':
-        servo.value = 150 / 180.0  # 150도
-    else:
-        servo.value = 90 / 180.0  # 90도 (일반 쓰레기)
+        servo1.value = 90 / 180.0  # 서보 모터 1: 90도 (왼쪽)
+        servo2.value = -90 / 180.0  # 서보 모터 2: 90도 (오른쪽)
+    else #일반쓰레기 90도로 조정하여 컨베이어 벨트 끝까지 갈 수 있도록 한다
+        servo1.value = 90 / 180.0  # 서보 모터 1: 90도 (왼쪽, 유지)
+        servo2.value = -90 / 180.0  # 서보 모터 2: 90도 (오른쪽, 유지)
 
 # 이미지 촬영 및 분류 함수 (카메라로 이미지 촬영 후 쓰레기 분류)
 def capture_and_classify():
