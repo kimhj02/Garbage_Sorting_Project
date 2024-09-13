@@ -4,6 +4,58 @@ import cv2  # OpenCV 라이브러리, 이미지 처리 및 카메라 제어에 �
 import numpy as np  # 수치 연산을 위한 NumPy 라이브러리
 import tensorflow as tf  # 딥러닝 모델을 로드하고 예측하는 데 사용되는 TensorFlow 라이브러리
 from gpiozero import Servo  # 서보 모터 제어를 위한 라이브러리
+import smbus  # I2C 통신을 위한 라이브러리
+from time import sleep
+
+# I2C 버스 설정 (라즈베리파이 모델에 따라 변경 가능, 보통 1번 버스 사용)
+I2C_ADDR = 0x27  # LCD I2C 주소 (일반적으로 0x27이 기본)
+LCD_WIDTH = 16  # LCD 문자 수 (일반적으로 16 또는 20)
+LCD_CHR = 1  # 문자 모드 설정
+LCD_CMD = 0  # 명령 모드 설정
+LCD_LINE_1 = 0x80  # 1번째 줄
+LCD_LINE_2 = 0xC0  # 2번째 줄
+LCD_BACKLIGHT = 0x08  # 백라이트 설정
+ENABLE = 0b00000100  # Enable bit
+
+# I2C 버스 생성
+bus = smbus.SMBus(1)
+
+# LCD 초기화 함수
+def lcd_init():
+    lcd_byte(0x33, LCD_CMD)  # 110011 초기화
+    lcd_byte(0x32, LCD_CMD)  # 110010 초기화
+    lcd_byte(0x06, LCD_CMD)  # 커서 이동 방향
+    lcd_byte(0x0C, LCD_CMD)  # 디스플레이 켬, 커서 끔
+    lcd_byte(0x28, LCD_CMD)  # 데이터 길이, 폰트 크기 설정
+    lcd_byte(0x01, LCD_CMD)  # 화면 지움
+    sleep(0.0005)
+
+# 데이터를 LCD에 전송하는 함수
+def lcd_byte(bits, mode):
+    bits_high = mode | (bits & 0xF0) | LCD_BACKLIGHT
+    bits_low = mode | ((bits << 4) & 0xF0) | LCD_BACKLIGHT
+    bus.write_byte(I2C_ADDR, bits_high)
+    lcd_toggle_enable(bits_high)
+    bus.write_byte(I2C_ADDR, bits_low)
+    lcd_toggle_enable(bits_low)
+
+# Enable 핀을 토글하는 함수
+def lcd_toggle_enable(bits):
+    sleep(0.0005)
+    bus.write_byte(I2C_ADDR, (bits | ENABLE))
+    sleep(0.0005)
+    bus.write_byte(I2C_ADDR, (bits & ~ENABLE))
+    sleep(0.0005)
+
+# 메시지를 출력하는 함수
+def lcd_string(message, line):
+    message = message.ljust(LCD_WIDTH, " ")
+    lcd_byte(line, LCD_CMD)
+    for i in range(LCD_WIDTH):
+        lcd_byte(ord(message[i]), LCD_CHR)
+
+# LCD 초기화
+lcd_init()
 
 # GPIO 핀 번호 설정
 TRIG_PIN_1 = 23  # 초음파 센서 1의 트리거 핀 (입구)
@@ -89,20 +141,26 @@ def move_servo(result):
     elif result == 'Plastic':
         servo1.value = 90 / 180.0  # 서보 모터 1: 90도 (왼쪽)
         servo2.value = -90 / 180.0  # 서보 모터 2: 90도 (오른쪽)
-    else #일반쓰레기 90도로 조정하여 컨베이어 벨트 끝까지 갈 수 있도록 한다
-        servo1.value = 90 / 180.0  # 서보 모터 1: 90도 (왼쪽, 유지)
-        servo2.value = -90 / 180.0  # 서보 모터 2: 90도 (오른쪽, 유지)
+    else:
+        servo1.value = 0  # 서보 모터 중립 위치
+        servo2.value = 0  # 서보 모터 중립 위치
 
-# 이미지 촬영 및 분류 함수 (카메라로 이미지 촬영 후 쓰레기 분류)
+# 쓰레기 종류 출력 함수 (LCD에 쓰레기 종류를 출력)
+def display_waste_type(waste_type):
+    lcd_string("Classified as:", LCD_LINE_1)  # 첫 번째 줄에 출력
+    lcd_string(waste_type, LCD_LINE_2)  # 두 번째 줄에 쓰레기 종류 출력
+
+# 카메라로 사진을 찍고 쓰레기를 분류하는 함수
 def capture_and_classify():
     camera = cv2.VideoCapture(0)
-    ret, frame = camera.read()
+    ret, frame = camera.read()  # 카메라로부터 이미지를 캡처
     if ret:
-        cv2.imwrite("capture.jpg", frame)  # 이미지를 저장
-        result = classify_waste("capture.jpg")  # 저장된 이미지를 분류
-        camera.release()
+        image_path = 'captured_image.jpg'
+        cv2.imwrite(image_path, frame)  # 이미지를 파일로 저장
+        result = classify_waste(image_path)  # 분류 결과 예측
         return result
-    camera.release()
+    else:
+        return "Error"
 
 # 메인 루프 (프로그램의 주요 동작을 관리)
 try:
@@ -116,6 +174,7 @@ try:
             motor_stop()
             result = capture_and_classify()  # 카메라로 사진을 찍고 분류
             print(f"Classified as: {result}")
+            display_waste_type(result)  # LCD에 결과 출력
             move_servo(result)  # 서보 모터를 쓰레기 종류에 따라 회전
             time.sleep(5)  # 5초간 컨베이어 벨트 작동
             motor_forward()
