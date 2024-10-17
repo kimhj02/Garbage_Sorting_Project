@@ -58,23 +58,37 @@ def lcd_string(message, line):
 lcd_init()
 
 # GPIO 핀 번호 설정
+
+# I2C SDA와 SCL 핀 설정 (라즈베리 파이)
+# SDA: GPIO 2번 핀, SCL: GPIO 3번 핀
+
 TRIG_PIN_1 = 23  # 초음파 센서 1의 트리거 핀 (입구)
 ECHO_PIN_1 = 24  # 초음파 센서 1의 에코 핀 (입구)
 TRIG_PIN_2 = 25  # 초음파 센서 2의 트리거 핀 (카메라 위치)
 ECHO_PIN_2 = 8   # 초음파 센서 2의 에코 핀 (카메라 위치)
+
 MOTOR_PIN1 = 17  # 컨베이어 벨트 모터의 제어 핀 1
 MOTOR_PIN2 = 27  # 컨베이어 벨트 모터의 제어 핀 2
-SERVO_PIN1 = 22  # 서보 모터1 제어 핀
-SERVO_PIN2 = 23  # 서보 모터2 제어 핀
+
+SERVO_PIN1 = 22  # 서보 모터1 제어 핀(분류 시스템)
+SERVO_PIN2 = 26  # 서보 모터2 제어 핀(분류 시스템)
+
+LED_RED_PIN = 28 # 빨간색 LED 제어 핀(작동 중 확인용)
+LED_GREEN_PIN = 29 # 초록색 LED 제어 핀(작동 중 확인용)
+
 
 # GPIO 초기화 및 핀 모드 설정
 GPIO.setmode(GPIO.BCM)  # GPIO 핀 번호를 BCM 모드로 설정
+
 GPIO.setup(TRIG_PIN_1, GPIO.OUT)  # 초음파 센서 1 트리거 핀 출력 모드 설정
 GPIO.setup(ECHO_PIN_1, GPIO.IN)  # 초음파 센서 1 에코 핀 입력 모드 설정
 GPIO.setup(TRIG_PIN_2, GPIO.OUT)  # 초음파 센서 2 트리거 핀 출력 모드 설정
 GPIO.setup(ECHO_PIN_2, GPIO.IN)  # 초음파 센서 2 에코 핀 입력 모드 설정
+
 GPIO.setup(MOTOR_PIN1, GPIO.OUT)  # 모터 제어 핀 1을 출력 모드로 설정
 GPIO.setup(MOTOR_PIN2, GPIO.OUT)  # 모터 제어 핀 2를 출력 모드로 설정
+GPIO.setup(LED_RED_PIN, GPIO.OUT)  # 빨간색 LED 출력 모드 설정
+GPIO.setup(LED_GREEN_PIN, GPIO.OUT)  # 초록색 LED 출력 모드 설정
 
 # 서보 모터 초기화
 servo1 = Servo(SERVO_PIN1)  # 서보 모터 1 (왼쪽)
@@ -87,6 +101,12 @@ model = tf.keras.models.load_model('waste_classification/model.h5')  # 사전 �
 def motor_forward():
     GPIO.output(MOTOR_PIN1, GPIO.HIGH)  # 모터 핀 1을 HIGH로 설정 (정방향 회전)
     GPIO.output(MOTOR_PIN2, GPIO.HIGH)  # 모터 핀 2를 HIGH로 설정
+
+def led_on(pin):
+    GPIO.output(pin, GPIO.HIGH)
+
+def led_off(pin):
+    GPIO.output(pin, GPIO.LOW)
 
 # 모터를 정지시키는 함수 (컨베이어 벨트 정지)
 def motor_stop():
@@ -127,7 +147,7 @@ def classify_waste(image_path):
     prediction = model.predict(img)
     class_idx = np.argmax(prediction, axis=1)[0]
     
-    class_names = ['Plastic', 'Paper', 'Metal', 'PET', 'General']
+    class_names = ['Plastic', 'Paper', 'PET', 'General']
     return class_names[class_idx]
 
 # 서보 모터 회전 함수 (쓰레기 분류에 따른 각도 조절)
@@ -141,7 +161,7 @@ def move_servo(result):
     elif result == 'Plastic':
         servo1.value = 90 / 180.0  # 서보 모터 1: 90도 (왼쪽)
         servo2.value = -90 / 180.0  # 서보 모터 2: 90도 (오른쪽)
-    else:
+    else: #general
         servo1.value = 0  # 서보 모터 중립 위치
         servo2.value = 0  # 서보 모터 중립 위치
 
@@ -165,9 +185,14 @@ def capture_and_classify():
 # 메인 루프 (프로그램의 주요 동작을 관리)
 try:
     while True:
+		    # 초록색 LED를 켜서 쓰레기 투입 준비 상태 표시
+        led_on(LED_GREEN_PIN)
+        
         # 입구 초음파 센서가 물체 감지 시 컨베이어 벨트 작동
         if get_distance(TRIG_PIN_1, ECHO_PIN_1) < 10:
             motor_forward()
+             led_on(LED_RED_PIN) # 빨간색 LED ON
+             led_off(LED_GREEN_PIN) #초록색 LED OFF
 
         # 카메라 위치 초음파 센서가 물체 감지 시 컨베이어 벨트 정지
         if get_distance(TRIG_PIN_2, ECHO_PIN_2) < 10:
@@ -180,8 +205,11 @@ try:
             motor_forward()
             time.sleep(5)
             motor_stop()
+            # 분류 완료
+            led_on(LED_GREEN_PIN) # 초록색 LED ON (분류 완료 표시)
+            led_off(LED_RED_PIN) # 빨간색 LED OFF (분류 완료 표시)
 
-        time.sleep(1)  # 1초 대기 후 반복
+        time.sleep(0.5)  # 1초 대기 후 반복
 
 except KeyboardInterrupt:  # 프로그램 종료 시 (Ctrl + C)
     GPIO.cleanup()  # GPIO 설정 초기화
